@@ -18,6 +18,7 @@ labels = pandas.read_csv("one_hot-labels_without_first_2_columns.csv") # default
 
 # Remove first column of data and first 2 columns of labels
 # Ik heb dat even handmatig gedaan, omdat ik het idee had dat er hier een fout zat
+# change this
 
 # Make data compatible for converting to tensors
 data_as_array = np.asarray(data).astype('float32')
@@ -31,9 +32,9 @@ def get_model(n_inputs, n_outputs):
 	model = Sequential()
 	# 20 in the line below means that the hidden layer has 20 nodes
 	# Maybe we should try some more values (trial and error)
-	model.add(Dense(20, input_dim=n_inputs, kernel_initializer='he_uniform', activation='relu'))
+	model.add(Dense(20, input_dim=n_inputs, kernel_initializer='he_uniform', activation='relu')) # think about relu and sigmoid
 	model.add(Dense(n_outputs, activation='sigmoid'))
-	model.compile(loss='binary_crossentropy', optimizer='adam')
+	model.compile(loss='binary_crossentropy', optimizer='adam') # check categorical_crossentropy
 	return model
 
 # Evaluate a model using repeated k-fold cross-validation
@@ -41,11 +42,11 @@ def evaluate_model(X, y):
 	results = list()
 	n_inputs, n_outputs = X.shape[1], y.shape[1]
 	# define evaluation procedure
-	cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
+	cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1) # optimize the hyperparameters
 	# enumerate folds
 	for train_ix, test_ix in cv.split(X):
 		# prepare data
-		X_train, X_test = X[train_ix], X[test_ix]
+		X_train, X_test = X[train_ix], X[test_ix] # is this the best way? check!
 		y_train, y_test = y[train_ix], y[test_ix]
 		# define model
 		model = get_model(n_inputs, n_outputs)
