@@ -12,6 +12,8 @@
 #Input dropout ratio [0.001, 0.1]
 #Hidden dropout ratios [0.001, 0.1]
 
+#todo in KerasClassifier ook class balance fixen
+
 
 # import packages
 import pandas as pandas
@@ -56,8 +58,8 @@ print(d_class_weights)
 def baseline_model():
  # create model
  model = Sequential()
- model.add(Dense(80, input_dim=20531, activation='relu'))
- model.add(Dense(50, activation='relu'))
+ model.add(Dense(50, input_dim=20531, activation='relu'))
+ model.add(Dense(20, activation='relu'))
  model.add(Dense(5, activation='softmax'))
  # Compile model
  model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
@@ -71,7 +73,7 @@ def baseline_model():
 
 # Test model met uiteindelijke parameters
 model = baseline_model()
-model.fit(X_train, y_train, batch_size = 20, epochs = 200, verbose = 1, validation_split = 0.2, class_weight = d_class_weights)
+model.fit(X_train, y_train, batch_size = 10, epochs = 200, verbose = 1, validation_split = 0.2, class_weight = d_class_weights)
 print(model.predict(X_test))
 score = model.evaluate(X_test, y_test, verbose=1)
 print(f'Test loss: {score[0]} / Test accuracy: {score[1]}')
