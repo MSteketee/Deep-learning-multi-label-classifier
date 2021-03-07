@@ -1,79 +1,78 @@
 # Multi label classification deep learning model voor RNAseq cancer data voor Machine learning project
-# Volgens https://machinelearningmastery.com/multi-label-classification-with-deep-learning/
+# Volgens https://machinelearningmastery.com/multi-class-classification-tutorial-keras-deep-learning-library/
+
+# - hoeveel layers: hoeveelheid RNA expressed is input, daarna wordt dit o.a. (deels) omgezet in eiwitten die vervolgens dingen
+# doen voor een cel (hier een groep cellen) wat iets zou kunnen zeggen over welk type kanker. Dus ca. 2 layers (3 in die tutorial, want daar is output ook een dense layer).
+#Parameter BRCA COAD KIPAN
+#Activation function {Rectifier, Tanh, Maxout}
+#Number of hidden layers {2, 3, 4}
+#Number of units per layer [10, 200]
+#L1 regularization [0.001, 0.1]
+#L2 regularization [0.001, 0.1]
+#Input dropout ratio [0.001, 0.1]
+#Hidden dropout ratios [0.001, 0.1]
+
 
 # import packages
 import pandas as pandas
 import numpy as np
 from numpy import mean
 from numpy import std
-from numpy import asarray
 np.random.seed(123)  # for reproducibility
-from sklearn.model_selection import RepeatedKFold
-from sklearn.metrics import accuracy_score
 from keras.models import Sequential
 from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasClassifier
+from keras.utils import np_utils
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import KFold
+from sklearn.preprocessing import LabelEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
 
-
-
-
-# Laad data in
-data = pandas.read_csv("C:/Users/Mischa/Downloads/data.csv")
-labels = pandas.read_csv("C:/Users/Mischa/Downloads/one_hot-labels.csv")
-
-# Verwijder eerste kolom (sample 0:800, staat toch al in rij naam)
-del data['Unnamed: 0']
-del labels['Unnamed: 0']
-del labels['X']
+# load data
+data = pandas.read_csv("C:/Users/Mischa/Downloads/data.csv", index_col= 0) # default header = True
+labels = pandas.read_csv("C:/Users/Mischa/Downloads/one_hot-labels.csv", sep = ";", index_col= 0) # default header = True
 
 #print(data)
 #print(labels)
+# Make data compatible for converting to tensors
+data_as_array = np.asarray(data).astype('float32')
+labels_as_array = np.asarray(labels).astype('float32')
 
-# get the model
-def get_model(n_inputs, n_outputs):
-	model = Sequential()
-	model.add(Dense(20, input_dim=n_inputs, kernel_initializer='he_uniform', activation='relu'))
-	model.add(Dense(n_outputs, activation='sigmoid'))
-	model.compile(loss='binary_crossentropy', optimizer='adam')
-	return model
+#print(data_as_array)
+#print(labels_as_array)
 
-# evaluate a model using repeated k-fold cross-validation
-# werkt nog niet, wss kan pandas niet gebruikt worden voor input van RepeatedKfold??
-def evaluate_model(X, y):
-	results = list()
-	n_inputs, n_outputs = X.shape[1], y.shape[1]
-	# define evaluation procedure
-	cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
-	# enumerate folds
-	for train_ix, test_ix in cv.split(X):
-		# prepare data
-		X_train, X_test = X[train_ix], X[test_ix]
-		y_train, y_test = y[train_ix], y[test_ix]
-		# define model
-		model = get_model(n_inputs, n_outputs)
-		# fit model
-		model.fit(X_train, y_train, verbose=0, epochs=100)
-		# make a prediction on the test set
-		yhat = model.predict(X_test)
-		# round probabilities to class labels
-		yhat = yhat.round()
-		# calculate accuracy
-		acc = accuracy_score(y_test, yhat)
-		# store result
-		print('>%.3f' % acc)
-		results.append(acc)
-	return results
 
-n_inputs = 20531
-n_outputs = 5
-model = get_model(n_inputs, n_outputs)
-model.fit(data,labels, verbose = 1, epochs = 1000)
-# predict de eerste sample
-row = data.iloc[0:1,:]
-yhat = model.predict(row)
-print('Predicted: %s' % yhat[0])
+# Maak train en test set
+X_train, X_test, y_train, y_test = train_test_split(data_as_array, labels_as_array, test_size=0.20, random_state=33)
 
-# als evaluate model werkt
-#results = evaluate_model(data, labels)
-##p#rint("Accuracy: %.3f (%.3f)" % (mean(results), std(results)))
+# Maak class weights voor class imbalance
+label_integers =np.argmax(labels_as_array, axis=1)
+class_weights = compute_class_weight('balanced', np.unique(label_integers), label_integers)
+d_class_weights = dict(enumerate(class_weights))
+print(d_class_weights)
+# define baseline model
+def baseline_model():
+ # create model
+ model = Sequential()
+ model.add(Dense(80, input_dim=20531, activation='relu'))
+ model.add(Dense(50, activation='relu'))
+ model.add(Dense(5, activation='softmax'))
+ # Compile model
+ model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+ return model
 
+# Hieronder is voor parameters testen
+#estimator = KerasClassifier(build_fn=baseline_model, epochs=200, batch_size=20, verbose=1)
+#kfold = KFold(n_splits=10, shuffle=True)
+#results = cross_val_score(estimator, X_train, y_train, cv=kfold)
+#print("Baseline: %.2f%% (%.2f%%)" % (results.mean()*100, results.std()*100))
+
+# Test model met uiteindelijke parameters
+model = baseline_model()
+model.fit(X_train, y_train, batch_size = 20, epochs = 200, verbose = 1, validation_split = 0.2, class_weight = d_class_weights)
+print(model.predict(X_test))
+score = model.evaluate(X_test, y_test, verbose=1)
+print(f'Test loss: {score[0]} / Test accuracy: {score[1]}')
 
