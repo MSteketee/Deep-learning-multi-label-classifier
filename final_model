@@ -26,6 +26,7 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.wrappers.scikit_learn import KerasClassifier
 from keras.utils import np_utils
+from sklearn.model_selection import LeaveOneOut
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder
@@ -60,49 +61,61 @@ labels_as_array = np.asarray(labels).astype('float32')
 #print(data_as_array)
 #print(labels_as_array)
 
+# OUD: Maak train en test set
+#X_train, X_test, y_train, y_test = train_test_split(data_as_array, labels_as_array, test_size=0.20, random_state=33)
 
-# Maak train en test set
-X_train, X_test, y_train, y_test = train_test_split(data_as_array, labels_as_array, test_size=0.20, random_state=33)
+# Split 5 time the data into a test and training set for outer CV
+cv_outer = KFold(n_splits=5, shuffle=True)
 
-# Balance data set volgens http://glemaitre.github.io/imbalanced-learn/generated/imblearn.over_sampling.RandomOverSampler.html
-# oversample samples < average
-no_samples = np.count_nonzero(y_train, axis = 0)
-average_samples = int(mean(no_samples))
-weights = []
-for i in range(len(no_samples)):
-    if no_samples[i] < average_samples:
-        weights.append(average_samples)
-    else:
-       weights.append(no_samples[i])
+for train_ix, test_ix in cv_outer.split(data_as_array):
 
-ratio_over = {0:weights[0], 1:weights[1], 2:weights[2], 3:weights[3], 4:weights[4]}
-over = RandomOverSampler(sampling_strategy = ratio_over, random_state = 314)
-X_train,y_train = over.fit_resample(X_train,y_train)
+    # split data
+    X_train, X_test = data_as_array[train_ix, :], data_as_array[test_ix, :]
+    y_train, y_test = labels_as_array[train_ix], labels_as_array[test_ix]
 
-# undersample samples > average
-ratio_under = {0:average_samples, 1:average_samples, 2:average_samples, 3:average_samples, 4:average_samples}
-under = RandomUnderSampler(sampling_strategy = ratio_under, random_state = 314)
-X_train,y_train = under.fit_resample(X_train,y_train)
+    # Balance data set volgens http://glemaitre.github.io/imbalanced-learn/generated/imblearn.over_sampling.RandomOverSampler.html
+    # oversample samples < average
+    no_samples = np.count_nonzero(y_train, axis = 0)
+    average_samples = int(mean(no_samples))
+    weights = []
+    for i in range(len(no_samples)):
+        if no_samples[i] < average_samples:
+            weights.append(average_samples)
+        else:
+           weights.append(no_samples[i])
 
-# OUD: Maak class weights voor class imbalance
-#label_integers =np.argmax(labels_as_array, axis=1)
-#class_weights = compute_class_weight('balanced', np.unique(label_integers), label_integers)
-#d_class_weights = dict(enumerate(class_weights))
-#print(d_class_weights)
+    ratio_over = {0:weights[0], 1:weights[1], 2:weights[2], 3:weights[3], 4:weights[4]}
+    over = RandomOverSampler(sampling_strategy = ratio_over, random_state = 314)
+    X_train,y_train = over.fit_resample(X_train,y_train)
 
-# Hieronder is voor parameters testen
-# Maak model
-print(type(X_train))
-print(type(y_train))
-estimator = KerasClassifier(build_fn=baseline_model, epochs=40, batch_size=20, verbose=1)
-kfold = KFold(n_splits=10, shuffle=True)
-results = cross_val_score(estimator, X_train, y_train, cv=kfold)
-print("Baseline: %.2f%% (%.2f%%)" % (results.mean()*100, results.std()*100))
+    # undersample samples > average
+    ratio_under = {0:average_samples, 1:average_samples, 2:average_samples, 3:average_samples, 4:average_samples}
+    under = RandomUnderSampler(sampling_strategy = ratio_under, random_state = 314)
+    X_train,y_train = under.fit_resample(X_train,y_train)
 
-# Test model met uiteindelijke parameters
-#model = baseline_model()
-#model.fit(X_train, y_train, batch_size = 10, epochs = 1, verbose = 1, validation_split = 0.2)
-#print(X_test)
-#print(model.predict(X_test))
-#score = model.evaluate(X_test, y_test, verbose=1)
-#print(f'Test loss: {score[0]} / Test accuracy: {score[1]}')
+    # OUD: Maak class weights voor class imbalance
+    #label_integers =np.argmax(labels_as_array, axis=1)
+    #class_weights = compute_class_weight('balanced', np.unique(label_integers), label_integers)
+    #d_class_weights = dict(enumerate(class_weights))
+    #print(d_class_weights)
+
+    # Configure the cross-validation procedure
+    cv_inner = LeaveOneOut()
+
+    # Hieronder is voor parameters testen
+
+    # Maak model
+    # AANPASSEN NAAR ONS MODEL IPV BASELINE_MODEL
+    # model = baseline_model()
+    estimator = KerasClassifier(build_fn=baseline_model, epochs=40, batch_size=20, verbose=1)
+
+    # kfold = KFold(n_splits=10, shuffle=True) OUD: verwijderen omdat we nu cv = cv_inner i.p.v. cv = kfold gebruiken
+    results = cross_val_score(estimator, X_train, y_train, cv=cv_inner)
+    print("Baseline: %.2f%% (%.2f%%)" % (results.mean()*100, results.std()*100))
+
+    #model.fit(X_train, y_train, batch_size = 10, epochs = 1, verbose = 1, validation_split = 0.2)
+    #print(X_test)
+    #print(model.predict(X_test))
+    #score = model.evaluate(X_test, y_test, verbose=1)
+    # RESULTS 
+    #print(f'Test loss: {score[0]} / Test accuracy: {score[1]}')
