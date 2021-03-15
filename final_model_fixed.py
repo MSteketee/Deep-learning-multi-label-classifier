@@ -63,8 +63,8 @@ labels = pandas.read_csv("one_hot-labels.csv", sep = ";", index_col= 0) # defaul
 data_as_array = np.asarray(data).astype('float32')
 labels_as_array = np.asarray(labels).astype('float32')
 
-print(data_as_array)
-print(labels_as_array)
+# print(data_as_array)
+# print(labels_as_array)
 
 
 
@@ -73,34 +73,52 @@ cv_outer = KFold(n_splits=5, shuffle=True)
 
 
 outer_results = list()
+outer_parameters = list()
 for train_ix, test_ix in cv_outer.split(data_as_array):
 
     # split data
     X_train, X_test = data_as_array[train_ix, :], data_as_array[test_ix, :]
     y_train, y_test = labels_as_array[train_ix], labels_as_array[test_ix]
 
+    # Balance data set volgens http://glemaitre.github.io/imbalanced-learn/generated/imblearn.over_sampling.RandomOverSampler.html
+    # oversample samples < average
+    no_samples = np.count_nonzero(y_train, axis=0)
+    average_samples = int(mean(no_samples))
+    weights = []
+    for i in range(len(no_samples)):
+        if no_samples[i] < average_samples:
+            weights.append(average_samples)
+        else:
+            weights.append(no_samples[i])
+
+    ratio_over = {0: weights[0], 1: weights[1], 2: weights[2], 3: weights[3], 4: weights[4]}
+    over = SMOTE(sampling_strategy=ratio_over, random_state=314)
+    X_train, y_train = over.fit_resample(X_train, y_train)
+
+    # undersample samples > average
+    ratio_under = {0: average_samples, 1: average_samples, 2: average_samples, 3: average_samples, 4: average_samples}
+    under = RandomUnderSampler(sampling_strategy=ratio_under, random_state=314)
+    X_train, y_train = under.fit_resample(X_train, y_train)
     cv_inner = KFold(n_splits=5, shuffle=True)
     model = KerasClassifier(build_fn=create_model, verbose=1)
 
-    batch_size = [8,16,32]
-    neurons = [30,40,50]
-    hidden_layers = [1,2,3]
-    epochs = [10,50,100]
-    activation = ['softmax','relu','tanh']
+    batch_size = [8, 16, 32]
+    neurons = [30, 40, 50]
+    hidden_layers = [1, 2, 3]
+    epochs = [10, 50, 100]
+    activation = ['softmax', 'relu', 'tanh']
     param_grid = dict(batch_size=batch_size,neurons=neurons,hidden_layers=hidden_layers,epochs=epochs,activation=activation)
     grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-2, cv=cv_inner)
     resultgridsearch = grid.fit(X_train,y_train)
 
     best_model = resultgridsearch.best_estimator_
-
-    yhat = best_model.predict(X_test)
-    acc = accuracy_score(y_test, yhat)
-
+    outer_parameters.append(best_model.get_params())
+    acc = best_model.score(X_test, y_test)
     outer_results.append(acc)
 
     print('>acc=%.3f, est=%.3f, cfg=%s' % (acc, resultgridsearch.best_score_, resultgridsearch.best_params_))
 
 print('Accuracy: %.3f (%.3f)' % (mean(outer_results), std(outer_results)))
-
+print(outer_parameters)
 
 
