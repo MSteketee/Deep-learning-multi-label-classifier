@@ -33,6 +33,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import LeavePOut
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import accuracy_score
@@ -99,7 +100,7 @@ for train_ix, test_ix in cv_outer.split(data_as_array):
     ratio_under = {0: average_samples, 1: average_samples, 2: average_samples, 3: average_samples, 4: average_samples}
     under = RandomUnderSampler(sampling_strategy=ratio_under, random_state=314)
     X_train, y_train = under.fit_resample(X_train, y_train)
-    cv_inner = KFold(n_splits=5, shuffle=True)
+    cv_inner = LeavePOut(2)
     model = KerasClassifier(build_fn=create_model, verbose=1)
 
     batch_size = [8, 16, 32]
