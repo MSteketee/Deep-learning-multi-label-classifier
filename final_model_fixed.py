@@ -45,7 +45,7 @@ def create_model(hidden_layers=1,activation='softmax',neurons=1):
     for i in range(hidden_layers):
         #Add a hidden layer
         model.add(Dense(neurons, activation=activation))
-    model.add(Dense(5,activation=activation))
+    model.add(Dense(5,activation="softmax"))
     # Compile model
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
     return model
