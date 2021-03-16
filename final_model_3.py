@@ -95,7 +95,7 @@ nr_of_pc = 200
 data_as_array = apply_pca(data_as_array, nr_of_pc)
 
 # Split 5 time the data into a test and training set for outer CV
-cv_outer = KFold(n_splits=5, shuffle=True)
+cv_outer = KFold(n_splits=2, shuffle=True)
 
 
 outer_results = list()
@@ -126,27 +126,37 @@ for train_ix, test_ix in cv_outer.split(data_as_array):
     ratio_under = {0: average_samples, 1: average_samples, 2: average_samples, 3: average_samples, 4: average_samples}
     under = RandomUnderSampler(sampling_strategy=ratio_under, random_state=314)
     X_train, y_train = under.fit_resample(X_train, y_train)
-    cv_inner = KFold(n_splits=5, shuffle=True)
+    cv_inner = KFold(n_splits=2, shuffle=True)
     model = KerasClassifier(build_fn=create_model, batch_size=32, epochs=100, verbose=0)
-    learning_rate = [0.001,0.01,0.05,0.1]
-    epochs = [10,20,30,40]
-    batch_size = [8, 16, 32, 64]
-    neurons = [30,40,50,60]
-    hidden_layers = [1, 2, 3]
-    activation = ['relu', 'tanh', 'sigmoid', 'linear']
+    learning_rate = [0.001,0.1]
+    epochs = [10]
+    batch_size = [8]
+    neurons = [30]
+    hidden_layers = [1, 2]
+    activation = ['relu']
     param_grid = dict(learning_rate=learning_rate,epochs=epochs,batch_size=batch_size,neurons=neurons,hidden_layers=hidden_layers, activation=activation)
-    grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=cv_inner)
+    grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-2, cv=cv_inner)
     resultgridsearch = grid.fit(X_train,y_train)
     grid_score = resultgridsearch.cv_results_['mean_test_score']
     params = resultgridsearch.cv_results_['params']
     for score,param in zip(grid_score,params):
         results_dict[score] = param
-    print(results_dict)
-    # acc = resultgridsearch.score(X_test,y_test)
-    # best_model = resultgridsearch.best_estimator_
-    # outer_parameters.append(best_model.get_params())
-    # acc = best_model.score(X_test, y_test)
-    # outer_results.append(acc)
+
+    sorted_acc = sorted(results_dict.keys(), reverse = True)
+    for acc in sorted_acc:
+        if acc < 0.9:
+            final_model_params = results_dict[acc]
+            break
+
+    final_model = create_model(hidden_layers = final_model_params["hidden_layers"], activation= final_model_params["activation"],
+                               neurons = final_model_params["neurons"], learning_rate = final_model_params["learning_rate"])
+    final_model = KerasClassifier(build_fn = final_model, batch_size = final_model_params["batch_size"], epochs = final_model_params["epochs"])
+    print(final_model.get_params())
+    # gaat vanaf hier nog fout
+    acc = final_model.score(X_test)
+    outer_parameters.append(best_model_params)
+    outer_results.append(acc)
+    print(outer_parameters, outer_results)
 
 
 
