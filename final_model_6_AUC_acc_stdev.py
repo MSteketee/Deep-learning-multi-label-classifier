@@ -120,109 +120,113 @@ def RFE_SVM(data, labels, n):
 data = pandas.read_csv("data.csv", index_col= 0) # default header = True
 labels = pandas.read_csv("one_hot-labels.csv", sep = ";", index_col= 0) # default header = True
 
-
-#print(data)
-#print(labels)
-
-
 # Make data compatible for converting to tensors
 data_as_array = np.asarray(data).astype('float32')
 labels_as_array = np.asarray(labels).astype('float32')
 
-#print(data_as_array)
-# print(labels_as_array)
-
+# Perform PCA
 nr_of_pc = 200
 data_as_array = apply_pca(data_as_array, nr_of_pc)
 
-# REMOVE LATER
-#outer_results = list()
-#outer_parameters = list()
-#for train_ix, test_ix in cv_outer.split(data_as_array):
+# Split 5 time the data into a test and training set for outer CV
+cv_outer = KFold(n_splits=5, shuffle=True)
 
+
+outer_results = list()
+outer_parameters = list()
 results_dict = {}
+for train_ix, test_ix in cv_outer.split(data_as_array):
 
-# split data
-X_train, X_test, y_train, y_test = train_test_split(data_as_array, labels_as_array) #Default is 0.25:0.75
+    # split data
+    X_train, X_test = data_as_array[train_ix, :], data_as_array[test_ix, :]
+    y_train, y_test = labels_as_array[train_ix], labels_as_array[test_ix]
 
-# Balance data set volgens http://glemaitre.github.io/imbalanced-learn/generated/imblearn.over_sampling.RandomOverSampler.html
-# oversample samples < average
-no_samples = np.count_nonzero(y_train, axis=0)
-average_samples = int(mean(no_samples))
-weights = []
-for i in range(len(no_samples)):
-    if no_samples[i] < average_samples:
-        weights.append(average_samples)
-    else:
-        weights.append(no_samples[i])
+    # Balance data set volgens http://glemaitre.github.io/imbalanced-learn/generated/imblearn.over_sampling.RandomOverSampler.html
+    # oversample samples < average
+    no_samples = np.count_nonzero(y_train, axis=0)
+    average_samples = int(mean(no_samples))
+    weights = []
+    for i in range(len(no_samples)):
+        if no_samples[i] < average_samples:
+            weights.append(average_samples)
+        else:
+            weights.append(no_samples[i])
 
-ratio_over = {0: weights[0], 1: weights[1], 2: weights[2], 3: weights[3], 4: weights[4]}
-over = SMOTE(sampling_strategy=ratio_over, random_state=314)
-X_train, y_train = over.fit_resample(X_train, y_train)
+    ratio_over = {0: weights[0], 1: weights[1], 2: weights[2], 3: weights[3], 4: weights[4]}
+    over = SMOTE(sampling_strategy=ratio_over, random_state=314)
+    X_train, y_train = over.fit_resample(X_train, y_train)
 
-# undersample samples > average
-ratio_under = {0: average_samples, 1: average_samples, 2: average_samples, 3: average_samples, 4: average_samples}
-under = RandomUnderSampler(sampling_strategy=ratio_under, random_state=314)
-X_train, y_train = under.fit_resample(X_train, y_train)
-cv_inner = KFold(n_splits=2, shuffle=True)
-model = KerasClassifier(build_fn=create_model, batch_size=32, epochs=100, verbose=0)
-learning_rate = [0.001,0.1]
-epochs = [10]
-batch_size = [8]
-neurons = [30]
-hidden_layers = [1, 2]
-activation = ['relu']
-param_grid = dict(learning_rate=learning_rate,epochs=epochs,batch_size=batch_size,neurons=neurons,hidden_layers=hidden_layers, activation=activation)
-grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-2, cv=cv_inner, verbose=1)
-resultgridsearch = grid.fit(X_train,y_train)
-grid_score = resultgridsearch.cv_results_['mean_test_score']
-params = resultgridsearch.cv_results_['params']
-for score,param in zip(grid_score,params):
-    results_dict[score] = param
+    # undersample samples > average
+    ratio_under = {0: average_samples, 1: average_samples, 2: average_samples, 3: average_samples, 4: average_samples}
+    under = RandomUnderSampler(sampling_strategy=ratio_under, random_state=314)
+    X_train, y_train = under.fit_resample(X_train, y_train)
+    cv_inner = KFold(n_splits=2, shuffle=True)
+    model = KerasClassifier(build_fn=create_model, batch_size=32, epochs=100, verbose=0)
+    learning_rate = [0.001,0.1]
+    epochs = [10]
+    batch_size = [8]
+    neurons = [30]
+    hidden_layers = [1, 2]
+    activation = ['relu']
+    param_grid = dict(learning_rate=learning_rate,epochs=epochs,batch_size=batch_size,neurons=neurons,hidden_layers=hidden_layers, activation=activation)
+    grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-2, cv=cv_inner, verbose=1)
+    resultgridsearch = grid.fit(X_train,y_train)
+    grid_score = resultgridsearch.cv_results_['mean_test_score']
+    params = resultgridsearch.cv_results_['params']
+    for score,param in zip(grid_score,params):
+        results_dict[score] = param
 
-sorted_acc = sorted(results_dict.keys(), reverse = True)
-for acc in sorted_acc:
-    if acc < 0.9:
-        final_model_params = results_dict[acc]
-        break
+    sorted_acc = sorted(results_dict.keys(), reverse = True)
+    for acc in sorted_acc:
+        if acc < 0.9:
+            final_model_params = results_dict[acc]
+            break
 
-# deze final model gaat over optimale hyperparameters van 1 outer CV ronde
-final_model = create_model(hidden_layers = final_model_params["hidden_layers"], activation= final_model_params["activation"],
-                           neurons = final_model_params["neurons"], learning_rate = final_model_params["learning_rate"])
-final_model.fit(X_train,y_train,epochs=final_model_params["epochs"],batch_size=final_model_params["batch_size"])
+    final_model = create_model(hidden_layers = final_model_params["hidden_layers"], activation= final_model_params["activation"],
+                               neurons = final_model_params["neurons"], learning_rate = final_model_params["learning_rate"])
+    final_model.fit(X_train,y_train,epochs=final_model_params["epochs"],batch_size=final_model_params["batch_size"])
 
-n_classes = 5
-y_score = final_model.predict_proba(X_test,batch_size=final_model_params["batch_size"])
-print(y_score)
-fpr = dict()
-tpr = dict()
-roc_auc = dict()
-for i in range(n_classes):
-    fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
-    roc_auc[i] = auc(fpr[i], tpr[i])
+    n_classes = 5
+    y_score = final_model.predict_proba(X_test,batch_size=final_model_params["batch_size"])
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+    for i in range(n_classes):
+        fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
 
-# Compute micro-average ROC curve and ROC area
-fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_score.ravel())
-roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+    # Compute micro-average ROC curve and ROC area
+    fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_score.ravel())
+    roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
 
-# Compute macro-average ROC curve and ROC area
+    # Compute macro-average ROC curve and ROC area
 
-# First aggregate all false positive rates
-all_fpr = np.unique(np.concatenate([fpr[i] for i in range(n_classes)]))
+    # First aggregate all false positive rates
+    all_fpr = np.unique(np.concatenate([fpr[i] for i in range(n_classes)]))
 
-# Then interpolate all ROC curves at this points
-mean_tpr = np.zeros_like(all_fpr)
-for i in range(n_classes):
-    mean_tpr += interp(all_fpr, fpr[i], tpr[i])
+    # Then interpolate all ROC curves at this points
+    mean_tpr = np.zeros_like(all_fpr)
+    for i in range(n_classes):
+        mean_tpr += interp(all_fpr, fpr[i], tpr[i])
 
-# Finally average it and compute AUC
-mean_tpr /= n_classes
+    # Finally average it and compute AUC
+    mean_tpr /= n_classes
 
-fpr["macro"] = all_fpr
-tpr["macro"] = mean_tpr
-roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
-plot_roc_curve(fpr,tpr,roc_auc)
-print('ROC_auc =', roc_auc)
+    fpr["macro"] = all_fpr
+    tpr["macro"] = mean_tpr
+    roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
+    plot_roc_curve(fpr,tpr,roc_auc)
+    print('roc_auc =', roc_auc)
 
-acc = accuracy_score(y_test,y_score)
-print('Accuracy =', acc)
+    # Make y_score compatible with one hot labeling
+    # Rename to y_hat_new
+    y_hat_new = np.zeros_like(y_score)
+    y_hat_new[np.arange(len(y_score)), y_score.argmax(1)] = 1
+
+    acc = accuracy_score(y_test,y_hat_new)
+    outer_results.append(acc)
+
+print('acc =', outer_results)
+print('parameters =', results_dict)
+print('mean_acc =', mean(outer_results))
+print('stdev_acc =', std(outer_results))
