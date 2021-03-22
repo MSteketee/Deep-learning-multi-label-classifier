@@ -54,7 +54,7 @@ from itertools import cycle
 def create_model(hidden_layers=1,activation='relu',neurons=1,learning_rate=0.001):
     # create model
     model = Sequential()
-    model.add(Dense(80, input_dim=200, activation=activation))
+    model.add(Dense(neurons, input_dim=200, activation=activation))
     for i in range(hidden_layers):
         model.add(Dense(neurons,activation=activation))
     model.add(Dense(5,activation="softmax"))
@@ -162,12 +162,12 @@ for train_ix, test_ix in cv_outer.split(data_as_array):
     X_train, y_train = under.fit_resample(X_train, y_train)
     cv_inner = KFold(n_splits=2, shuffle=True)
     model = KerasClassifier(build_fn=create_model, batch_size=32, epochs=100, verbose=0)
-    learning_rate = [0.001,0.1]
-    epochs = [10]
-    batch_size = [8]
-    neurons = [30]
-    hidden_layers = [1, 2]
-    activation = ['relu']
+    learning_rate = [0.001, 0.01, 0.1]
+    batch_size = [8,16,32]
+    neurons = [50, 100, 150]
+    hidden_layers = [1,2,3]
+    epochs = [10, 30, 50]
+    activation = ['relu','tanh','sigmoid']
     param_grid = dict(learning_rate=learning_rate,epochs=epochs,batch_size=batch_size,neurons=neurons,hidden_layers=hidden_layers, activation=activation)
     grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-2, cv=cv_inner, verbose=1)
     resultgridsearch = grid.fit(X_train,y_train)
@@ -178,9 +178,8 @@ for train_ix, test_ix in cv_outer.split(data_as_array):
 
     sorted_acc = sorted(results_dict.keys(), reverse = True)
     for acc in sorted_acc:
-        if acc < 0.9:
-            final_model_params = results_dict[acc]
-            break
+        final_model_params = results_dict[acc]
+        break
 
     final_model = create_model(hidden_layers = final_model_params["hidden_layers"], activation= final_model_params["activation"],
                                neurons = final_model_params["neurons"], learning_rate = final_model_params["learning_rate"])
@@ -188,6 +187,7 @@ for train_ix, test_ix in cv_outer.split(data_as_array):
 
     n_classes = 5
     y_score = final_model.predict_proba(X_test,batch_size=final_model_params["batch_size"])
+    print('y_score =', y_score)
     fpr = dict()
     tpr = dict()
     roc_auc = dict()
