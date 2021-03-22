@@ -160,7 +160,7 @@ for train_ix, test_ix in cv_outer.split(data_as_array):
     ratio_under = {0: average_samples, 1: average_samples, 2: average_samples, 3: average_samples, 4: average_samples}
     under = RandomUnderSampler(sampling_strategy=ratio_under, random_state=314)
     X_train, y_train = under.fit_resample(X_train, y_train)
-    cv_inner = KFold(n_splits=2, shuffle=True)
+    cv_inner = KFold(n_splits=5, shuffle=True)
     model = KerasClassifier(build_fn=create_model, batch_size=32, epochs=100, verbose=0)
     learning_rate = [0.001, 0.01, 0.1]
     batch_size = [8,16,32]
